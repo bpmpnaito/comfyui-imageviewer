@@ -38,12 +38,33 @@ app.registerExtension({
 
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         if (nodeData.name === "ImageViewer") {
+            // Add a widget for the fullscreen button
+            nodeType.prototype.onNodeCreated = function() {
+                const fullscreenButton = this.addWidget("button", "View Fullscreen", null, () => {
+                    if (this.currentImageUrl) {
+                        const ext = app.extensions.find(ext => ext.name === "ImageViewer");
+                        if (ext && ext.overlay) {
+                            ext.overlayImg.src = this.currentImageUrl;
+                            ext.overlay.style.display = "flex";
+                        }
+                    }
+                });
+                fullscreenButton.disabled = true; // Initially disabled
+            };
+
             const onExecuted = nodeType.prototype.onExecuted;
             nodeType.prototype.onExecuted = function(message) {
                 onExecuted?.apply(this, arguments);
 
                 if (message?.images) {
                     this.imgs = message.images;
+                    // Enable the button when images are available
+                    if (this.widgets) {
+                        const button = this.widgets.find(w => w.name === "View Fullscreen");
+                        if (button) {
+                            button.disabled = false;
+                        }
+                    }
                     app.graph.setDirtyCanvas(true);
                 }
             };
@@ -79,42 +100,25 @@ app.registerExtension({
 
                             ctx.drawImage(this.previewImg, x, y + 30, imgW, imgH);
 
-                            // Draw fullscreen button
-                            const btnW = 100;
-                            const btnH = 25;
-                            const btnX = (this.size[0] - btnW) / 2;
-                            const btnY = y + 190;
+                            // Simple text instruction instead of button
+                            ctx.fillStyle = "yellow";
+                            ctx.font = "12px sans-serif";
+                            ctx.fillText("Double-click image to view fullscreen", x, y + imgH + 50);
 
-                            // Button background
-                            ctx.fillStyle = "rgba(50, 100, 200, 0.8)";
-                            ctx.fillRect(btnX, btnY, btnW, btnH);
-
-                            // Button border
-                            ctx.strokeStyle = "rgba(255,255,255,0.8)";
-                            ctx.lineWidth = 1;
-                            ctx.strokeRect(btnX, btnY, btnW, btnH);
-
-                            // Button text
-                            ctx.fillStyle = "white";
-                            ctx.font = "11px sans-serif";
-                            ctx.textAlign = "center";
-                            ctx.fillText("View Fullscreen", btnX + btnW/2, btnY + 16);
-                            ctx.textAlign = "left"; // Reset alignment
-
-                            // Store button rect for click detection
-                            this.buttonRect = [btnX, btnY, btnW, btnH];
+                            // Store image area for click detection
+                            this.imageRect = [x, y + 30, imgW, imgH];
                             this.currentImageUrl = img_url;
                         }
                     }
                 }
             };
 
-            // Override onMouseDown for button click detection
-            const originalOnMouseDown = nodeType.prototype.onMouseDown;
-            nodeType.prototype.onMouseDown = function(event, localPos) {
-                // Check if click is on fullscreen button
-                if (this.buttonRect && this.currentImageUrl) {
-                    const [x, y, w, h] = this.buttonRect;
+            // Override onDblClick for image double-click
+            const originalOnDblClick = nodeType.prototype.onDblClick;
+            nodeType.prototype.onDblClick = function(event, localPos) {
+                // Check if double-click is on image
+                if (this.imageRect && this.currentImageUrl) {
+                    const [x, y, w, h] = this.imageRect;
 
                     if (localPos[0] >= x && localPos[0] <= x + w &&
                         localPos[1] >= y && localPos[1] <= y + h) {
@@ -130,7 +134,7 @@ app.registerExtension({
                 }
 
                 // Call original handler
-                return originalOnMouseDown ? originalOnMouseDown.apply(this, arguments) : false;
+                return originalOnDblClick ? originalOnDblClick.apply(this, arguments) : false;
             };
         }
     }
