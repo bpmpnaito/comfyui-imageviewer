@@ -55,13 +55,13 @@ app.registerExtension({
                 }
 
                 if (this.imgs && this.imgs.length > 0) {
-                    const y = this.size[1] - 220;
+                    const y = this.size[1] - 250;
                     ctx.fillStyle = "rgba(0,0,0,0.5)";
-                    ctx.fillRect(0, y, this.size[0], 220);
+                    ctx.fillRect(0, y, this.size[0], 250);
 
                     ctx.fillStyle = "white";
                     ctx.font = "12px sans-serif";
-                    ctx.fillText(`Preview: ${this.imgs.length} image(s) - Double-click to view fullscreen`, 10, y + 20);
+                    ctx.fillText(`Preview: ${this.imgs.length} image(s)`, 10, y + 20);
 
                     if (this.imgs[0]) {
                         const img_url = api.apiURL(`/view?filename=${this.imgs[0].filename}&type=${this.imgs[0].type}&subfolder=${this.imgs[0].subfolder}`);
@@ -74,30 +74,47 @@ app.registerExtension({
 
                         if (this.previewImg.complete) {
                             const imgW = 180;
-                            const imgH = 180;
+                            const imgH = 150;
                             const x = (this.size[0] - imgW) / 2;
-
-                            // Draw clickable border
-                            ctx.strokeStyle = "rgba(255,255,255,0.5)";
-                            ctx.lineWidth = 2;
-                            ctx.strokeRect(x-2, y + 28, imgW+4, imgH+4);
 
                             ctx.drawImage(this.previewImg, x, y + 30, imgW, imgH);
 
-                            // Store image rect for click detection (node-relative coordinates)
-                            this.imageRect = [x, y + 30, imgW, imgH];
+                            // Draw fullscreen button
+                            const btnW = 100;
+                            const btnH = 25;
+                            const btnX = (this.size[0] - btnW) / 2;
+                            const btnY = y + 190;
+
+                            // Button background
+                            ctx.fillStyle = "rgba(50, 100, 200, 0.8)";
+                            ctx.fillRect(btnX, btnY, btnW, btnH);
+
+                            // Button border
+                            ctx.strokeStyle = "rgba(255,255,255,0.8)";
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(btnX, btnY, btnW, btnH);
+
+                            // Button text
+                            ctx.fillStyle = "white";
+                            ctx.font = "11px sans-serif";
+                            ctx.textAlign = "center";
+                            ctx.fillText("View Fullscreen", btnX + btnW/2, btnY + 16);
+                            ctx.textAlign = "left"; // Reset alignment
+
+                            // Store button rect for click detection
+                            this.buttonRect = [btnX, btnY, btnW, btnH];
                             this.currentImageUrl = img_url;
                         }
                     }
                 }
             };
 
-            // Override onMouseDown for click detection
+            // Override onMouseDown for button click detection
             const originalOnMouseDown = nodeType.prototype.onMouseDown;
             nodeType.prototype.onMouseDown = function(event, localPos) {
-                // Check if click is on image preview
-                if (this.imageRect && this.currentImageUrl) {
-                    const [x, y, w, h] = this.imageRect;
+                // Check if click is on fullscreen button
+                if (this.buttonRect && this.currentImageUrl) {
+                    const [x, y, w, h] = this.buttonRect;
 
                     if (localPos[0] >= x && localPos[0] <= x + w &&
                         localPos[1] >= y && localPos[1] <= y + h) {
