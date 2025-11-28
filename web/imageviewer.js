@@ -61,7 +61,7 @@ app.registerExtension({
 
                     ctx.fillStyle = "white";
                     ctx.font = "12px sans-serif";
-                    ctx.fillText(`Preview: ${this.imgs.length} image(s) - Click to view fullscreen`, 10, y + 20);
+                    ctx.fillText(`Preview: ${this.imgs.length} image(s) - Double-click to view fullscreen`, 10, y + 20);
 
                     if (this.imgs[0]) {
                         const img_url = api.apiURL(`/view?filename=${this.imgs[0].filename}&type=${this.imgs[0].type}&subfolder=${this.imgs[0].subfolder}`);
@@ -76,9 +76,15 @@ app.registerExtension({
                             const imgW = 180;
                             const imgH = 180;
                             const x = (this.size[0] - imgW) / 2;
+
+                            // Draw clickable border
+                            ctx.strokeStyle = "rgba(255,255,255,0.5)";
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(x-2, y + 28, imgW+4, imgH+4);
+
                             ctx.drawImage(this.previewImg, x, y + 30, imgW, imgH);
 
-                            // Store image rect for click detection
+                            // Store image rect for click detection (node-relative coordinates)
                             this.imageRect = [x, y + 30, imgW, imgH];
                             this.currentImageUrl = img_url;
                         }
@@ -86,20 +92,28 @@ app.registerExtension({
                 }
             };
 
-            const onMouseDown = nodeType.prototype.onMouseDown;
-            nodeType.prototype.onMouseDown = function(event, localPos, canvas) {
+            // Override onMouseDown for click detection
+            const originalOnMouseDown = nodeType.prototype.onMouseDown;
+            nodeType.prototype.onMouseDown = function(event, localPos) {
+                // Check if click is on image preview
                 if (this.imageRect && this.currentImageUrl) {
                     const [x, y, w, h] = this.imageRect;
+
                     if (localPos[0] >= x && localPos[0] <= x + w &&
                         localPos[1] >= y && localPos[1] <= y + h) {
-                        // Click on image - show fullscreen
+
+                        // Show fullscreen
                         const ext = app.extensions.find(ext => ext.name === "ImageViewer");
-                        ext.overlayImg.src = this.currentImageUrl;
-                        ext.overlay.style.display = "flex";
-                        return true; // Consume the event
+                        if (ext && ext.overlay) {
+                            ext.overlayImg.src = this.currentImageUrl;
+                            ext.overlay.style.display = "flex";
+                        }
+                        return true; // Prevent other handling
                     }
                 }
-                return onMouseDown ? onMouseDown.call(this, event, localPos, canvas) : false;
+
+                // Call original handler
+                return originalOnMouseDown ? originalOnMouseDown.apply(this, arguments) : false;
             };
         }
     }
