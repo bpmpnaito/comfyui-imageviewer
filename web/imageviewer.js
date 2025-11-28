@@ -90,6 +90,25 @@ app.registerExtension({
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         if (nodeData.name === "ImageViewer") {
 
+            // Add widget button when node is created
+            const origNodeCreated = nodeType.prototype.onNodeCreated;
+            nodeType.prototype.onNodeCreated = function() {
+                if (origNodeCreated) {
+                    origNodeCreated.apply(this, arguments);
+                }
+
+                // Add fullscreen button widget
+                this.fullscreenWidget = this.addWidget("button", "🔍 View Fullscreen", null, () => {
+                    if (this.imgs && this.imgs.length > 0) {
+                        const imageUrl = api.apiURL(`/view?filename=${this.imgs[0].filename}&type=${this.imgs[0].type}&subfolder=${this.imgs[0].subfolder || ""}`);
+                        showFullscreen(imageUrl);
+                    }
+                });
+
+                // Initially disable the button
+                this.fullscreenWidget.disabled = true;
+            };
+
             // Add right-click context menu for fullscreen
             const origGetExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
             nodeType.prototype.getExtraMenuOptions = function(_, options) {
@@ -97,24 +116,44 @@ app.registerExtension({
                     origGetExtraMenuOptions.apply(this, arguments);
                 }
 
-                if (this.imgs && this.imgs.length > 0) {
-                    options.push({
-                        content: "🔍 View Fullscreen",
-                        callback: () => {
+                options.push({
+                    content: "🔍 View Fullscreen",
+                    callback: () => {
+                        if (this.imgs && this.imgs.length > 0) {
                             const imageUrl = api.apiURL(`/view?filename=${this.imgs[0].filename}&type=${this.imgs[0].type}&subfolder=${this.imgs[0].subfolder || ""}`);
                             showFullscreen(imageUrl);
                         }
-                    });
-                }
+                    }
+                });
             };
 
             // Handle execution results
-            const onExecuted = nodeType.prototype.onExecuted;
+            const origExecuted = nodeType.prototype.onExecuted;
             nodeType.prototype.onExecuted = function(message) {
-                onExecuted?.apply(this, arguments);
+                if (origExecuted) {
+                    origExecuted.apply(this, arguments);
+                }
+
                 if (message?.images) {
                     this.imgs = message.images;
+
+                    // Enable the fullscreen button when images are available
+                    if (this.fullscreenWidget) {
+                        this.fullscreenWidget.disabled = false;
+                    }
                 }
+            };
+
+            // Add double-click handler for fullscreen
+            const origOnDblClick = nodeType.prototype.onDblClick;
+            nodeType.prototype.onDblClick = function(event, pos, canvas) {
+                if (this.imgs && this.imgs.length > 0) {
+                    const imageUrl = api.apiURL(`/view?filename=${this.imgs[0].filename}&type=${this.imgs[0].type}&subfolder=${this.imgs[0].subfolder || ""}`);
+                    showFullscreen(imageUrl);
+                    return true; // Prevent default double-click behavior
+                }
+
+                return origOnDblClick ? origOnDblClick.apply(this, arguments) : false;
             };
         }
     }
