@@ -51,25 +51,40 @@ app.registerExtension({
 
         // Python 側からの画像更新イベントを購読
         app.api.addEventListener("custom.fullscreenpreview.update", (event) => {
-            const { tag, image } = event.detail;
-            const dataUrl = `data:image/png;base64,${image}`;
+            try {
+                const { tag, image } = event.detail;
+                if (!image) {
+                    console.warn("FullscreenPreview: No image data received");
+                    return;
+                }
 
-            const graph = app.graph;
-            if (!graph || !graph._nodes) return;
+                const dataUrl = `data:image/png;base64,${image}`;
 
-            // ノードの tag ウィジェットとマッチするものだけを更新
-            for (const node of graph._nodes) {
-                if (node.comfyClass !== "FullscreenPreview") continue;
-                const widget = node.widgets?.find((w) => w.name === "tag");
-                if (!widget || widget.value !== tag) continue;
+                const graph = app.graph;
+                if (!graph || !graph._nodes) return;
 
-                node.__fullscreenPreviewSrc = dataUrl;
-                node.setDirtyCanvas(true); // 再描画
-            }
+                let updated = false;
+                // ノードの tag ウィジェットとマッチするものだけを更新
+                for (const node of graph._nodes) {
+                    if (node.comfyClass !== "FullscreenPreview") continue;
+                    const widget = node.widgets?.find((w) => w.name === "tag");
+                    if (!widget || widget.value !== tag) continue;
 
-            // もしオーバーレイが表示中なら、フルサイズも更新
-            if (overlay && overlay.style.display !== "none") {
-                overlayImg.src = dataUrl;
+                    node.__fullscreenPreviewSrc = dataUrl;
+                    node.setDirtyCanvas(true); // 再描画
+                    updated = true;
+                }
+
+                if (!updated) {
+                    console.warn(`FullscreenPreview: No node found with tag "${tag}"`);
+                }
+
+                // もしオーバーレイが表示中なら、フルサイズも更新
+                if (overlay && overlay.style.display !== "none") {
+                    overlayImg.src = dataUrl;
+                }
+            } catch (error) {
+                console.error("FullscreenPreview: Error processing update event", error);
             }
         });
 
@@ -77,31 +92,43 @@ app.registerExtension({
         const origOnDrawForeground = LiteGraph.LGraphNode.prototype.onDrawForeground;
         LiteGraph.LGraphNode.prototype.onDrawForeground = function (ctx) {
             if (this.comfyClass === "FullscreenPreview" && this.__fullscreenPreviewSrc) {
-                if (!this.__thumbImg) {
-                    this.__thumbImg = new Image();
-                    this.__thumbImg.onload = () => {
-                        this.setDirtyCanvas(true);
-                    };
-                    this.__thumbImg.src = this.__fullscreenPreviewSrc;
+                try {
+                    if (!this.__thumbImg || this.__thumbImg.src !== this.__fullscreenPreviewSrc) {
+                        this.__thumbImg = new Image();
+                        this.__thumbImg.onload = () => {
+                            this.setDirtyCanvas(true);
+                        };
+                        this.__thumbImg.onerror = () => {
+                            console.error("FullscreenPreview: Failed to load thumbnail image");
+                        };
+                        this.__thumbImg.src = this.__fullscreenPreviewSrc;
+                    }
+
+                    // 画像が読み込まれていない場合は何も描画しない
+                    if (!this.__thumbImg.complete) {
+                        return;
+                    }
+
+                    const size = 80;
+                    const padding = 8;
+                    const x = padding;
+                    const y = this.size[1] - size - padding;
+
+                    // 角丸サムネイル
+                    ctx.save();
+                    if (ctx.roundRect) {
+                        ctx.beginPath();
+                        ctx.roundRect(x, y, size, size, 6);
+                        ctx.clip();
+                    }
+                    ctx.drawImage(this.__thumbImg, x, y, size, size);
+                    ctx.restore();
+
+                    // クリック判定用の矩形を記録（ノード座標系）
+                    this.__thumbRect = [x, y, size, size];
+                } catch (error) {
+                    console.error("FullscreenPreview: Error drawing thumbnail", error);
                 }
-
-                const size = 80;
-                const padding = 8;
-                const x = padding;
-                const y = this.size[1] - size - padding;
-
-                // 角丸サムネイル
-                ctx.save();
-                if (ctx.roundRect) {
-                    ctx.beginPath();
-                    ctx.roundRect(x, y, size, size, 6);
-                    ctx.clip();
-                }
-                ctx.drawImage(this.__thumbImg, x, y, size, size);
-                ctx.restore();
-
-                // クリック判定用の矩形を記録（ノード座標系）
-                this.__thumbRect = [x, y, size, size];
             }
 
             if (origOnDrawForeground) {
