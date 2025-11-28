@@ -1,0 +1,11 @@
+# __init__.py
+from .src.nodes import FullscreenPreview, NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+
+# 既存のマッピングをそのまま export
+NODE_CLASS_MAPPINGS = NODE_CLASS_MAPPINGS
+NODE_DISPLAY_NAME_MAPPINGS = NODE_DISPLAY_NAME_MAPPINGS
+
+# カスタム JavaScript を置いたディレクトリを ComfyUI に伝える
+WEB_DIRECTORY = "./web/js"
+
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
